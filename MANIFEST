@@ -5,4 +5,5 @@ MANIFEST
 README
 t/fields-aliased.t
 lib/fields/aliased.pm
+lib/fields/aliased/base.pm
 META.yml                                 Module meta-data (added by MakeMaker)

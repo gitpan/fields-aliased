@@ -4,3 +4,5 @@ Revision history for Perl extension fields::aliased.
 	- original version; created by h2xs 1.23 with options
 		-A -b 5.6.0 --skip-ppport --skip-exporter fields::aliased
 
+1.01  Tue Sep 28 07:36:30 2004
+	- fix dist to include fields/aliased/base.pm
