@@ -5,7 +5,7 @@
 ## This program is free software. It may be copied and/or redistributed under
 ## the same terms as Perl itself.
 ##==============================================================================
-## $Id: aliased.pm,v 0.5 2004/06/06 02:30:13 kevin Exp $
+## $Id: aliased.pm,v 0.6 2004/06/06 05:59:20 kevin Exp $
 ##==============================================================================
 require 5.006;
 
@@ -13,7 +13,7 @@ package ## don't want this indexed yet
 	fields::aliased;
 use strict;
 use warnings;
-our $VERSION = '0.3';
+our $VERSION = '0.4';
 
 use Tie::IxHash;
 use Carp;
@@ -321,6 +321,12 @@ L<Perl6::Binding|Perl6::Binding>
 
 =over 4
 
+=item 0.4
+
+Numerous fixes relating to edge cases.
+
+Error messages should now reference the proper line and file.
+
 =item 0.3
 
 We now ignore 'field vars' if it's preceded by # on the same line.
@@ -382,7 +388,7 @@ sub import {
                             "multiple definition of variable: $type$name";
                     } else {
                         push @message,
-                            "$name already defined as $vars->{$name}$name";
+                            "$type$name already defined as $vars->{$name}$name";
                     }
                 } else {
                     $vars->{$name} = $type;
@@ -406,56 +412,63 @@ FILTER {
     no strict 'refs';
     return unless length;
 
-	print "*** $_filename:\n" if $DEBUG;
+    print "*** $_filename:\n" if $DEBUG;
 
     my $output = <<"__";
 use fields qw(@{[join ' ', keys %{"$_package\::FIELDALIASES"}]});
 BEGIN { our \@ISA; push \@ISA, 'fields::aliased::_base'; }
 #line @{[++$_line]} "$_filename"
 __
-	print $output if $DEBUG;
+    print $output if $DEBUG;
     my $fvars = \%{"$_package\::FIELDALIASES"};
 
     while (
-        /^(.*?)                         ## everything up to field vars into $1
+        /^(.*?)                         ## everything up to 'field vars' in $1
          (                              ## Save rest of matched stuff in $2
-           (?<!\\)                      ## Backslash ignores this
            field\s+vars                 ## match the command
            (?:\s*:\s*(my)?\s*           ## $3 becomes 'my' or nothing
-             (\$[^\s;]+)\s*             ## $4 becomes $self-reference if present
+              (\$[^\s;]+)\s*            ## $4 becomes $self-reference if present
            )?                           ## whole thing is optional
-           (?:\s*\(\s*                  ## might be followed by a parenthesis
-               (                        ## and a list of variables into $5
-                [\$\@\%]\w+             ## first variable in list
-                (?:\s*,\s*[\$\@\%]\w+)* ## and the rest of the list
-               )\s*,?\s*\)				## allow a trailing comma and whitespace
-           )?                           ## the whole thing is optional
-           \s*;                         ## terminated by a semicolon
+           (?:\s*                       ## next is variable list, if present
+             (                          ## save into $5
+              \(\s*                     ## it's wrapped in parentheses
+               (?:[\$\@\%]\w+           ## one variable name
+                  (?:\s*(?:,\s*)+[\s\@\%]\w+)*
+                  [\s,]*                ## can be followed by extra commas
+               )?                       ## the variable name part is optional
+              \)
+             )
+           )?
+           \s*;[ \t]*\n?                ## terminated by a semicolon
          )                              ## end of stuff saved in $2
-         (.*)$                          ## rest of program into $6
+         (.*)$                          ## rest of program into $7
         /sx
     ) {
         my (
-        	$prefix, $all, $myflg, $selfvar, $vars, $suffix
+            $prefix, $all, $myflg, $selfvar, $vars, $suffix
         ) = ($1, $2, $3, $4, $5, $6);
-        my (%vars, %myvars, $generated);
-        
+        my (%vars, %myvars, $hadlist, $generated);
+
         $_line += $prefix =~ tr/\n/\n/;
-        $generated = <<"__";
-#line $_line "$_filename"
-__
-		$_line += $all =~ tr/\n/\n/;
-        
-        if ($prefix =~ /\n[^\n]*#[^\n]*/) {
-        	$prefix .= $all;
-        	$output .= $prefix;
-        	$_ = $suffix;
-        	next;
+        my $prior_line = $_line;
+        $generated = qq{#line $_line "$_filename\n};
+        $_line += ($all =~ tr/\n/\n/);
+
+        if ($prefix =~ /^(.*#.*)\Z/m || $prefix =~ /(\\)\Z/) {
+            my $match = $1;
+            print "## skipping 'field vars' on line $prior_line\n"
+                if $DEBUG && $DEBUG == 1;
+            $prefix =~ s/\\\Z// unless $match =~ /#/;
+            $output .= $prefix . $all;
+            print $prefix, $all if $DEBUG && $DEBUG > 1;
+            $_ = $suffix;
+            next;
         }
 
-        $prefix =~ s/\\(?=field\s+vars\b)//g;
+        $prefix =~ s/[ \t]+$//;
 
         $output .= $prefix;
+        print $prefix if $DEBUG && $DEBUG > 1;
 
         if (defined $selfvar) {
             if ($myflg) {
@@ -465,22 +478,28 @@ __
             $selfvar = '$_[0]';
         }
 
-        if (defined $vars) {
-            %vars = map { ( $_ => 1 ) } split m/\s*,\s*/, $vars
+        my $errortail = "at $_filename line $_line";
+        if (defined $vars && $vars =~ /\S/) {
+            if ($vars =~ /^\((.*)\)$/) {
+                %vars = map { ( $_ => 1 ) } split m/\s*,\s*/, $1;
+                $hadlist = 1;
+            }
         } elsif (exists $fvars->{':strict'}) {
-            croak "must specify variable list when ':strict' is specified";
+            die << "__";
+must specify variable list when ':strict' is specified $errortail
+__
         }
 
         foreach my $class ($_package->fields::aliased::_base::pedigree) {
-        	next unless defined %{"$class\::FIELDALIASES"};
+            next unless defined %{"$class\::FIELDALIASES"};
             my $vars = \%{"$class\::FIELDALIASES"};
 
             while (my ($varname, $type) = each %$vars) {
                 if ($class eq $_package || $varname !~ /^_/) {
                     if (exists $myvars{$varname}) {
                         my ($otype, $oclass) = @{$myvars{$varname}};
-                        croak <<"__" if $type ne $otype;
-$type$varname already defined as $otype$varname in $class
+                        die <<"__" if $type ne $otype;
+$type$varname already defined as $otype$varname in $class $errortail
 __
                     } else {
                         $myvars{$varname} = [ $type, $class ];
@@ -488,22 +507,26 @@ __
                 }
             }
         }
-        if (keys %vars) {
+        if ($hadlist) {
             my %temp;
+            my @bad;
 
             foreach (keys %vars) {
-            	my ($type, $name) = unpack 'a1a*', $_;
-                $temp{$name} = $myvars{$name};
-                delete $vars{$_};
+                my ($type, $name) = unpack 'a1a*', $_;
+                if (exists $myvars{$name}) {
+                    $temp{$name} = $myvars{$name};
+                } else {
+                    push @bad, $_;
+                }
             }
             %myvars = %temp;
 
-            croak <<"__" if keys %vars;
-invalid field variables: @{[join ', ', sort keys %vars]}
+            die <<"__" if @bad;
+invalid field variables: @{[join ', ', @bad]} $errortail
 __
         }
         if (keys %myvars) {
-        	$generated .= <<"__";
+            $generated .= <<"__";
 my (@{[join ', ', map { "$myvars{$_}[0]$_" } sort keys %myvars]});
 $selfvar->create_aliases(
 __
@@ -514,19 +537,20 @@ __
             $generated .= "\n);\n";
         }
         $generated .= <<"__";
-#line @{[$_line + 1]} "$_filename"
+#line $_line "$_filename"
 __
 
-		print $generated if $DEBUG;
-		$output .= $generated;
+        print $generated if $DEBUG;
+        $output .= $generated;
         $_ = $suffix;
     }
+    print if $DEBUG && $DEBUG > 1;
     $output .= $_;
     $_ = $output;
 };
 
 package ## don't index this, either
-	fields::aliased::_base;
+    fields::aliased::_base;
 use strict;
 use warnings;
 
@@ -632,6 +656,9 @@ sub _recursive_pedigree ($\%@) {
 
 ##==============================================================================
 ## $Log: aliased.pm,v $
+## Revision 0.6  2004/06/06 05:59:20  kevin
+## Numerous fixes for edge cases.
+##
 ## Revision 0.5  2004/06/06 02:30:13  kevin
 ## Get the #line directives correct, and add $DEBUG variable.
 ##
