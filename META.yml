@@ -1,14 +1,13 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         fields-aliased
-version:      0.4
+version:      1.00
 version_from: lib/fields/aliased.pm
 installdirs:  site
 requires:
-    Filter::Simple:                0.78
-    Lexical::Util:                 0.1
-    Test::More:                    0.47
-    Tie::IxHash:                   1.21
+    Filter::Util::Call:            0
+    Test::More:                    0
+    Tie::IxHash:                   0
 
 distribution_type: module
 generated_by: ExtUtils::MakeMaker version 6.17

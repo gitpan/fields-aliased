@@ -1,109 +1,49 @@
-BEGIN {
-    package X;
-    use Test::More tests => 26;
-    use strict;
-    use warnings;
-    use fields::aliased qw(
-        $scalar @array %hash
-    );
+##==============================================================================
+## t/fields-aliased.t - test file for fields::aliased
+##==============================================================================
+## $Id: fields-aliased.t,v 1.0 2004/09/28 02:57:31 kevin Exp $
+##==============================================================================
+require 5.006;
 
-    ok(1);
+use Test::More tests => 5;
 
-    sub set_testvars {
-        field vars : my $self;
+##==============================================================================
+## Create a package that uses fields to define instance variables.
+##==============================================================================
+package Testing;
+use strict;
+use fields::aliased;
+use fields qw($scalar @array %hash nosigil);
+Test::More::ok(1);
 
-        $scalar = 'one';
-        @array = ( qw/two three/ );
-        %hash = ( 'four' => 4, 'five' => 5 );
+sub method {
+	my Testing $self = shift;
+	use fields::aliased qw($self $scalar @array %hash nosigil);
 
-        ok( $self->{'scalar'} eq 'one' );
-        ok( $self->{'array'}[0] eq 'two' && $self->{'array'}[1] eq 'three' );
-        ok( $self->{'hash'}{'four'} == 4 && $self->{'hash'}{'five'} == 5 );
-    }
+	$scalar = 1;
+	$array[1] = 7;
+	$hash{'foo'} = 'bar';
+	$nosigil = 4;
 
-    sub examine_testvars {
-        field vars : my $self;
-
-        ok( $scalar eq 'one' );
-        ok( $array[0] eq 'two' && $array[1] eq 'three' );
-        ok( $hash{'four'} == 4 && $hash{'five'} == 5 );
-
-        $scalar = 'won';
-        ok( $self->{'scalar'} eq 'won' );
-        ok( \$scalar == \$self->{'scalar'} );
-
-        $self->nested_testvars;
-    }
-
-    sub examine_two {
-        (my X $self) = @_;
-        field vars : $self ($scalar, @array, %hash);
-
-        ok( $scalar eq 'won' );
-        ok( $array[0] eq 'two' && $array[1] eq 'three' );
-        ok( $hash{'four'} == 4 && $hash{'five'} == 5 );
-
-        ok( \$scalar == \$self->{'scalar'} );
-
-        $self->nested_testvars;
-    }
-
-    sub nested_testvars {
-        field vars : my $self;
-
-        ok( $scalar eq 'won' );
-        ok( $array[0] eq 'two' && $array[1] eq 'three' );
-        ok( $hash{'four'} == 4 && $hash{'five'} == 5 );
-    }
-
-    sub recursive_testvars {
-        field vars : my $self;
-        my ($level) = @_;
-
-        ok( defined $scalar && $scalar eq 'won' );
-
-        unless ($level) {
-            $self->recursive_testvars($level + 1);
-        }
-    }
-
-    sub comments {
-##      field vars : my $self;
-##      \field vars : my $self;
-
-        my $text = '\field vars : my $self ($scalar);';
-        ok(1);
-    }
-
-    sub fancy {
-        field vars : my $self (
-            $scalar, %hash, @array,
-        );
-
-        ok( defined $scalar && $scalar eq 'won' );
-        ok( $array[0] eq 'two' and $array[1] eq 'three' );
-        ok( $hash{'four'} == 4 && $hash{'five'} == 5 );
-    }
-    
-    sub nolist {
-        field vars : my $self ();
-    }
-    
-    sub nolist2 {
-        my $self = shift;
-        field vars : $self ();
-    }
-
-    ok(__LINE__ == 97);
+	Test::More::ok($self->{'nosigil'} == 4);
+	Test::More::ok($self->{'@array'}[1] == 7);
+	Test::More::ok($self->{'$scalar'} == 1);
+	Test::More::ok($self->{'%hash'}{'foo'} eq 'bar');
 }
 
+##==============================================================================
+## Then create an instance of the object and check things out.
+##==============================================================================
 package main;
+use strict;
 
-my $t = X->new;
+my $object = new Testing;
 
-$t->set_testvars;
-$t->examine_testvars;
-$t->examine_two;
-$t->recursive_testvars(0);
-$t->fancy;
-$t->comments;
+$object->method;
+
+##==============================================================================
+## $Log: fields-aliased.t,v $
+## Revision 1.0  2004/09/28 02:57:31  kevin
+## Initial revision
+##
+##==============================================================================

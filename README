@@ -1,86 +1,64 @@
-NAME
+fields-aliased version 1.00
+===========================
 
-    fields::aliased - alias members created by the 'fields' pragma
+NAME
+	fields::aliased - create aliases for fields
+
+SYNOPSIS
+	package MyPackage;
+	use strict;
+	use fields::aliased;
+	use fields qw($scalar @array %hash);
+	
+	sub new {
+		my $class = shift;
+		my $self = fields::aliased::new($class);
+		use fields::aliased qw($self $scalar @array %hash);
+		
+		$scalar = 1;
+		@array = ('foo', 'bar');
+		%hash = ('foo' => 'bar', 'baz' => 'huh?');
+		
+		return $self;
+	}
+	
+	sub myMethod {
+		my MyPackage $self = shift;
+		use fields::aliased qw($self $scalar @array %hash);
+		
+		...
+	}
 
 DESCRIPTION
-
-    'fields::aliased' extends the 'fields' pragmatic module to make
-    compile-time class fields even easier to use...you get them aliased
-    to lexical variables so that you don't have to constantly
-    dereference the object within methods. As an example, let's take the
-    following inane excerpt of a class named Example:
-
-        package Example;
-        use strict;
-        use fields qw(scalar array hash);
-
-        ## Constructor
-        sub new {
-            my $self = fields::new(shift);
-
-            $self->{scalar} = 3;
-            $self->{array}  = [];
-            $self->{hash}   = {};
-
-            return $self;
-        }
-
-        sub sample_method {
-            my ($self) = @_;
-
-            $self->{array}[0] = 'yup';
-            print $self->{scalar}, "\n";
-        }
-
-    The exact same effect could be achieved by the following:
-
-        package Example;
-        use strict;
-        use fields::aliased qw($scalar @array %hash);
-
-        ## Constructor
-        sub new {
-            my $self = shift->SUPER::new;
-            field vars : $self;
-
-            $scalar = 3;
-
-            return $self;
-        }
-
-        sub sample_method {
-            field vars : my $self;
-
-            $array[0] = 'yup';
-            print $scalar, "\n";
-        }
-
-    They perform the same operations, but you don't have to type
-    "$self->" before all of the fields. This can make code much easier
-    to read, especially for arrays and hashes.
+	This module is a companion to the 'fields' module, which allows
+	efficient handling of instance variables with checking at compile
+	time. 'fields::aliased' goes one step further and creates lexical
+	aliases to the fields used by a method, so that they can be used
+	as regular lexical variables. This makes code shorter and also
+	easier to read.
 
 INSTALLATION
 
-    To install this module, use the standard incantation:
+	To install this module, use the standard incantation:
 
-        perl Makefile.PL
-        make
-        make test
-        make install
+		perl Makefile.PL
+		make
+		make test
+		make install
 
-PREREQUISITES
+DEPENDENCIES
 
-    Perl 5.6
+This module requires these other modules and libraries:
 
-    Tie::IxHash, Filter::Simple, Lexical::Util
+	Tie::IxHash, Filter::Util::Call, Test::More (for the tests)
 
-COPYRIGHT AND LICENSE
+COPYRIGHT AND LICENCE
 
-    Copyright 2004 Kevin Michael Vail
-
-    This program is free software. It may be copied and/or redistributed
-    under the same terms as Perl itself.
+	Copyright (C) 2004 by Kevin Michael Vail
+	
+	This library is free software; you can redistribute it and/or modify
+	it under the same terms as Perl itself.
 
 AUTHOR
 
-    Kevin Michael Vail <kevin@vaildc.net>
+	Kevin Michael Vail <kvail@cpan.org>
