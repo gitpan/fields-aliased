@@ -1,9 +1,11 @@
 BEGIN {
     package X;
-    use Test::More tests => 24;
+    use Test::More tests => 26;
     use strict;
     use warnings;
-    use fields::aliased qw($scalar @array %hash);
+    use fields::aliased qw(
+    	$scalar @array %hash
+    );
 
     ok(1);
 
@@ -64,16 +66,22 @@ BEGIN {
             $self->recursive_testvars($level + 1);
         }
     }
-    
+
+    sub comments {
+##		field vars : my $self;
+		ok(1);
+	}
+
     sub fancy {
     	field vars : my $self (
     		$scalar, %hash, @array,
     	);
-    	
+
     	ok( defined $scalar && $scalar eq 'won' );
     	ok( $array[0] eq 'two' and $array[1] eq 'three' );
     	ok( $hash{'four'} == 4 && $hash{'five'} == 5 );
     }
+	ok(__LINE__ == 85);
 }
 
 package main;
@@ -85,3 +93,4 @@ $t->examine_testvars;
 $t->examine_two;
 $t->recursive_testvars(0);
 $t->fancy;
+$t->comments;

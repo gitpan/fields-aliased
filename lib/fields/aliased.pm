@@ -5,7 +5,7 @@
 ## This program is free software. It may be copied and/or redistributed under
 ## the same terms as Perl itself.
 ##==============================================================================
-## $Id: aliased.pm,v 0.4 2004/06/06 00:54:19 kevin Exp $
+## $Id: aliased.pm,v 0.5 2004/06/06 02:30:13 kevin Exp $
 ##==============================================================================
 require 5.006;
 
@@ -13,7 +13,7 @@ package ## don't want this indexed yet
 	fields::aliased;
 use strict;
 use warnings;
-our $VERSION = '0.2';
+our $VERSION = '0.3';
 
 use Tie::IxHash;
 use Carp;
@@ -24,6 +24,8 @@ use Filter::Simple;
 ## from the call to FILTER. They're set by the call to 'import'.
 ##------------------------------------------------------------------------------
 my ($_package, $_filename, $_line);
+
+our $DEBUG;
 
 =head1 NAME
 
@@ -247,6 +249,14 @@ C<< no fields::aliased; >>
 
 prior to beginning the new package.
 
+=item *
+
+If you seem to be having a problem with the generated code, you can set the
+variable C<$fields::aliased::DEBUG> to a true value to cause the generated code
+to be sent to standard output. This must be done in a BEGIN block prior to the
+"use fields::aliased" line in order to have the desired effect. The odds are
+that no one but me will ever have to do this, though.
+
 =back
 
 =head1 DIAGNOSTICS
@@ -310,6 +320,14 @@ L<Perl6::Binding|Perl6::Binding>
 =head1 HISTORY
 
 =over 4
+
+=item 0.3
+
+We now ignore 'field vars' if it's preceded by # on the same line.
+
+The #line directives should now be correct.
+
+Added $DEBUG flag.
 
 =item 0.2
 
@@ -388,12 +406,14 @@ FILTER {
     no strict 'refs';
     return unless length;
 
+	print "*** $_filename:\n" if $DEBUG;
+
     my $output = <<"__";
 use fields qw(@{[join ' ', keys %{"$_package\::FIELDALIASES"}]});
 BEGIN { our \@ISA; push \@ISA, 'fields::aliased::_base'; }
-#line $_line "$_filename"
+#line @{[++$_line]} "$_filename"
 __
-    my $line = $_line;
+	print $output if $DEBUG;
     my $fvars = \%{"$_package\::FIELDALIASES"};
 
     while (
@@ -415,19 +435,31 @@ __
          (.*)$                          ## rest of program into $6
         /sx
     ) {
-        my ($prefix, $myflg, $selfvar, $vars, $suffix) = ($1, $3, $4, $5, $6);
-        my (%vars, %myvars, $addlines);
+        my (
+        	$prefix, $all, $myflg, $selfvar, $vars, $suffix
+        ) = ($1, $2, $3, $4, $5, $6);
+        my (%vars, %myvars, $generated);
+        
+        $_line += $prefix =~ tr/\n/\n/;
+        $generated = <<"__";
+#line $_line "$_filename"
+__
+		$_line += $all =~ tr/\n/\n/;
+        
+        if ($prefix =~ /\n[^\n]*#[^\n]*/) {
+        	$prefix .= $all;
+        	$output .= $prefix;
+        	$_ = $suffix;
+        	next;
+        }
 
         $prefix =~ s/\\(?=field\s+vars\b)//g;
-        $line += $prefix =~ tr/\n/\n/;
-        $addlines = $2 =~ tr/\n/\n/;
 
         $output .= $prefix;
 
         if (defined $selfvar) {
             if ($myflg) {
-                $output .= qq{my __PACKAGE__ $selfvar = shift;\n};
-                ++$addlines;
+                $generated .= qq{my __PACKAGE__ $selfvar = shift;\n};
             }
         } else {
             $selfvar = '$_[0]';
@@ -471,23 +503,22 @@ invalid field variables: @{[join ', ', sort keys %vars]}
 __
         }
         if (keys %myvars) {
-            $output .= <<"__";
+        	$generated .= <<"__";
 my (@{[join ', ', map { "$myvars{$_}[0]$_" } sort keys %myvars]});
+$selfvar->create_aliases(
 __
-            $output .= "$selfvar->create_aliases(";
-            my $temp = join ",\n", map {
+            my $temp = '    ' . join ",\n    ", map {
                 qq{'$myvars{$_}[0]$_'}
             } sort keys %myvars;
-            $addlines += $temp =~ tr/\n/\n/;
-            $output .= $temp;
-            $output .= "\n);\n";
-            $addlines += 2;
+            $generated .= $temp;
+            $generated .= "\n);\n";
         }
-        $_line += $addlines;
-        $output .= <<"__";
-#line $line "$_filename"
+        $generated .= <<"__";
+#line @{[$_line + 1]} "$_filename"
 __
 
+		print $generated if $DEBUG;
+		$output .= $generated;
         $_ = $suffix;
     }
     $output .= $_;
@@ -601,6 +632,9 @@ sub _recursive_pedigree ($\%@) {
 
 ##==============================================================================
 ## $Log: aliased.pm,v $
+## Revision 0.5  2004/06/06 02:30:13  kevin
+## Get the #line directives correct, and add $DEBUG variable.
+##
 ## Revision 0.4  2004/06/06 00:54:19  kevin
 ## Numerous fixes.
 ##
