@@ -5,7 +5,7 @@
 ## This program is free software. It may be copied and/or redistributed under
 ## the same terms as Perl itself.
 ##==============================================================================
-## $Id: aliased.pm,v 0.3 2004/05/31 08:51:03 kevin Exp $
+## $Id: aliased.pm,v 0.4 2004/06/06 00:54:19 kevin Exp $
 ##==============================================================================
 require 5.006;
 
@@ -13,7 +13,7 @@ package ## don't want this indexed yet
 	fields::aliased;
 use strict;
 use warnings;
-our $VERSION = '0.1';
+our $VERSION = '0.2';
 
 use Tie::IxHash;
 use Carp;
@@ -68,7 +68,7 @@ The exact same effect could be achieved by the following:
 
 	## Constructor
 	sub new {
-	    my $self = fields::aliased::new(shift);
+	    my $self = shift->SUPER::new;
 	    field vars : $self;
 
 	    $scalar = 3;
@@ -77,7 +77,7 @@ The exact same effect could be achieved by the following:
 	}
 
 	sub sample_method {
-	    field vars : my $self (@array, $scalar)
+	    field vars : my $self (@array, $scalar);
 
 	    $array[0] = 'yup';
 	    print $scalar, "\n";
@@ -302,9 +302,22 @@ L<Tie::IxHash|Tie::IxHash>,
 L<Filter::Simple|Filter::Simple>,
 L<Lexical::Util|Lexical::Util>
 
+=head1 SEE ALSO
+
+L<Alias|Alias>, L<Lexical::Alias|Lexical::Alias>,
+L<Perl6::Binding|Perl6::Binding>
+
 =head1 HISTORY
 
 =over 4
+
+=item 0.2
+
+Fixed the example code so it actually compiles and runs. (Thanks to Slaven Rezic
+for finding this.)
+
+Changed to allow trailing whitespace and/or a trailing comma at the end of the
+variable list in the C<field vars> statement.
 
 =item 0.1
 
@@ -395,7 +408,7 @@ __
                (                        ## and a list of variables into $5
                 [\$\@\%]\w+             ## first variable in list
                 (?:\s*,\s*[\$\@\%]\w+)* ## and the rest of the list
-               )\)
+               )\s*,?\s*\)				## allow a trailing comma and whitespace
            )?                           ## the whole thing is optional
            \s*;                         ## terminated by a semicolon
          )                              ## end of stuff saved in $2
@@ -588,6 +601,9 @@ sub _recursive_pedigree ($\%@) {
 
 ##==============================================================================
 ## $Log: aliased.pm,v $
+## Revision 0.4  2004/06/06 00:54:19  kevin
+## Numerous fixes.
+##
 ## Revision 0.3  2004/05/31 08:51:03  kevin
 ## Fix bug handling list of variables.
 ##
