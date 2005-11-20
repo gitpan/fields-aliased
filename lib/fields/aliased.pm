@@ -5,7 +5,7 @@
 ## This program is free software. It may be copied and/or redistributed under
 ## the same terms as Perl itself.
 ##==============================================================================
-## $Id: aliased.pm,v 1.4 2004/10/05 19:45:46 kevin Exp $
+## $Id: aliased.pm,v 1.5 2004/10/17 06:19:32 kevin Exp $
 ##==============================================================================
 require 5.006;
 
@@ -13,7 +13,7 @@ package fields::aliased;
 use strict;
 no strict 'refs';
 use warnings;
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 use Carp;
 use Tie::IxHash;
 use Filter::Util::Call;
@@ -77,45 +77,13 @@ fields::aliased::setup($selfname, __PACKAGE__, qw/
     1;
 }
 
-##==============================================================================
-## init
-##==============================================================================
-sub init {
-    my ($self) = @_;
-    my $class = ref $self;
-    
-    _init($self, $class);
-}
-
-my %initializers = (
-    '$'     =>  sub { undef },
-    '@'     =>  sub { [] },
-    '%'     =>  sub { {} },
-);
-
-##==============================================================================
-## _init - do the real work
-##==============================================================================
-sub _init {
-    my $self = shift;
-    
-    foreach my $class (@_) {
-        next unless defined %{"$class\::FIELDS"};
-        foreach my $field_name (keys %{"$class\::FIELDS"}) {
-            next if $field_name =~ /^_/;
-            my ($vartype) = unpack 'a1', field2varname($field_name);
-            croak "field $field_name has invalid data type"
-                unless exists $initializers{$vartype};
-            $self->{$field_name} = $initializers{$vartype}->();
-        }
-        _init($self, @{"$class\::ISA"}) if defined @{"$class\::ISA"};
-    }
-}
-
 1;
 
 ##==============================================================================
 ## $Log: aliased.pm,v $
+## Revision 1.5  2004/10/17 06:19:32  kevin
+## Private fields now seem to be working, at least under 5.8.x and earlier.
+##
 ## Revision 1.4  2004/10/05 19:45:46  kevin
 ## Don't try to initialize private fields.
 ##
@@ -145,19 +113,18 @@ fields::aliased - create aliases for object fields
     package MyPackage;
     use strict;
     use fields qw($scalar @array %hash);
-    
+
     sub new {
         my $class = shift;
         my $self = fields::new($class);
-        fields::aliased::init($self);
 
         return $self;
     }
-    
+
     sub mymethod {
         my MyPackage $self = shift;
         use fields::aliased qw($self $scalar @array %hash);
-        
+
         $scalar = 1;
         @array = (2 .. 4);
         %hash = ('one' => 1, 'two' => 2);
@@ -183,11 +150,9 @@ For names beginning with an underscore, see L<"PRIVATE FIELDS"> below.
 
 =head2 Constructors
 
-You call L<fields::new|fields/new> to create the object, and then call
-C<fields::aliased::init> to set the fields to suitable initial values.
+You call L<fields::new|fields/new> to create the object.
 
     my $self = fields::new($class);
-    fields::aliased::init($self);
 
 =head2 Usage
 
@@ -216,33 +181,6 @@ front, as always. Thus a field named C<_$private_scalar> is linked to a variable
 named C<$_private_scalar>. A field named C<_private>, of course, is linked to a
 variable named C<$_private>.
 
-=head2 Important Note
-
-Because of the way C<use fields> works, it is not possible for
-L<fields::aliased::init> to initialize private variables in superclasses, so it
-skips the initialization for all field names beginning with an underscore.
-Therefore, you are responsible for initializing these values yourself. For a
-scalar field, this works out all right anyway, because the initial value of a
-hash or array element that's never been assigned a value is B<undef>, which is
-what this module would have assigned anyway. However, I<any private field
-declared as an array or hash B<must> be set to an appropriate reference during
-object construction> if you expect to use it in a C<use fields> statement within
-a method, or you will get a run-time error.
-
-=head1 FUNCTIONS
-
-=over 4
-
-=item fields::aliased::init
-
-C<< fields::aliased::init(I<$self>); >>
-
-This function sets all of the fields in I<$self>, including inherited fields
-(but I<not> including private fields, see L<above|"PRIVATE FIELDS">), to
-suitable defaults. It should be called right after L<fields::new|fields/new>.
-
-=back
-
 =head1 KNOWN PROBLEMS
 
 =over 4
@@ -258,6 +196,12 @@ the issues figured out yet.
 =head1 HISTORY
 
 =over 4
+
+=item 1.05
+
+Initialize field values at C<use fields::aliased> time rather than when the
+object is created. Net effect should be identical, but this allows private
+fields to work.
 
 =item 1.04
 

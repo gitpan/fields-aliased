@@ -1,12 +1,12 @@
 ##==============================================================================
 ## t/fields-aliased.t - test file for fields::aliased
 ##==============================================================================
-## $Id: fields-aliased.t,v 1.1 2004/10/01 02:51:46 kevin Exp $
+## $Id: fields-aliased.t,v 1.2 2004/10/17 06:22:45 kevin Exp $
 ##==============================================================================
 require 5.006;
 use strict;
 use warnings;
-use Test::More tests => 25;
+use Test::More tests => 31;
 
 ##==============================================================================
 ## This module tests the basic functionality: creating an object with the basic
@@ -15,43 +15,51 @@ use Test::More tests => 25;
 package Testing;
 use strict;
 use fields qw(
-    $scalar @array %hash nosigil
+    $scalar @array %hash nosigil _%privhash _@privarray _private
 );
 Test::More::ok(1);
 
 sub new {
     my $class = shift;
     my Testing $self = fields::new($class);
-    fields::aliased::init($self);
     use fields::aliased qw(
-        $self $scalar @array %hash nosigil
+        $self $scalar @array %hash nosigil _%privhash _@privarray _private
     );
-    
+
     $scalar = 1;
     $array[1] = 7;
     $hash{'foo'} = 'bar';
     $nosigil = 4;
-    
+    $_privhash{'foo'} = 'bar';
+    @_privarray = (0 .. 3);
+    $_private = 'huh?';
+
     return $self;
 }
 
 sub method {
     my Testing $self = shift;
     use fields::aliased qw(
-        $self $scalar @array %hash nosigil
+        $self $scalar @array %hash nosigil _%privhash _@privarray _private
     );
 
     Test::More::ok($scalar == 1);
     Test::More::ok($array[1] == 7);
     Test::More::ok($hash{'foo'} eq 'bar');
     Test::More::ok($nosigil == 4);
-    
+    Test::More::ok($_privhash{'foo'} eq 'bar');
+    Test::More::ok($_privarray[1] == 1);
+    Test::More::ok($_private eq 'huh?');
+
     $scalar++;
-    
+
     Test::More::ok($self->{'nosigil'} == 4);
     Test::More::ok($self->{'@array'}[1] == 7);
     Test::More::ok($self->{'$scalar'} == 2);
     Test::More::ok($self->{'%hash'}{'foo'} eq 'bar');
+    Test::More::ok($self->{'_%privhash'}{'foo'} eq 'bar');
+    Test::More::ok($self->{'_@privarray'}[1] == 1);
+    Test::More::ok($self->{'_private'} eq 'huh?');
 }
 
 ##==============================================================================
@@ -72,33 +80,33 @@ sub new {
     Test::More::ok($array[1] == 7);
     Test::More::ok($hash{'foo'} eq 'bar');
     Test::More::ok($nosigil == 4);
-    
+
     $myscalar = 3;
     $myarray[0] = 'subclass';
     $myhash{'electric'} = 'slide';
     $mynosigil = 'nada';
-    
+
     return $self;
 }
-    
-    
+
+
 sub method {
     my Testing::Subclass $self = shift;
     use fields::aliased qw(
         $self $scalar @array %hash nosigil
         $myscalar @myarray %myhash mynosigil
     );
-    
+
     Test::More::ok($scalar == 1);
     Test::More::ok($array[1] == 7);
     Test::More::ok($hash{'foo'} eq 'bar');
     Test::More::ok($nosigil == 4);
-    
+
     Test::More::ok($myscalar == 3);
     Test::More::ok($myarray[0] eq 'subclass');
     Test::More::ok($myhash{'electric'} eq 'slide');
     Test::More::ok($mynosigil eq 'nada');
-    
+
     Test::More::ok($self->{'$myscalar'} == 3);
     Test::More::ok($self->{'@myarray'}[0] eq 'subclass');
     Test::More::ok($self->{'%myhash'}{'electric'} eq 'slide');
@@ -121,6 +129,9 @@ $object2->method;
 
 ##==============================================================================
 ## $Log: fields-aliased.t,v $
+## Revision 1.2  2004/10/17 06:22:45  kevin
+## Add tests for private fields.
+##
 ## Revision 1.1  2004/10/01 02:51:46  kevin
 ## Many more tests, including testing a subclass.
 ##
